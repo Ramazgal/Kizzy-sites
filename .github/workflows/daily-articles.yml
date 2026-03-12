@@ -63,7 +63,6 @@ jobs:
           git push
 
       - name: Deploy to Selectel S3
-        if: steps.check.outputs.changed == 'true'
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.SELECTEL_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SELECTEL_SECRET }}
