@@ -1,0 +1,77 @@
+name: Daily SEO Articles
+
+on:
+  # Запуск каждый день в 9:00 по Москве (06:00 UTC)
+  schedule:
+    - cron: '0 6 * * *'
+  # Ручной запуск из интерфейса GitHub (Actions → Run workflow)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Сколько статей сгенерировать (0 = все новые)'
+        required: false
+        default: '3'
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # чтобы коммитить сгенерированные файлы обратно в репо
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate articles
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '3' }}"
+          if [ "$LIMIT" = "0" ]; then
+            python generate_articles.py
+          else
+            python generate_articles.py --limit "$LIMIT"
+          fi
+
+      - name: Check if new articles were created
+        id: check
+        run: |
+          git add articles/
+          if git diff --staged --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Новых статей нет"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            COUNT=$(git diff --staged --name-only | grep -c '\.html$' || true)
+            echo "Новых файлов: $COUNT"
+          fi
+
+      - name: Commit generated articles to repo
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: auto-generate SEO articles [skip ci]"
+          git push
+
+      - name: Deploy to Selectel S3
+        if: steps.check.outputs.changed == 'true'
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.SELECTEL_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SELECTEL_SECRET }}
+          AWS_DEFAULT_REGION:    ru-1
+        run: |
+          pip install awscli --quiet
+          aws s3 sync articles/ s3://honestpartners-site/articles/ \
+            --endpoint-url https://s3.selcdn.ru \
+            --acl public-read \
+            --only-show-errors
+          echo "Деплой завершён"
