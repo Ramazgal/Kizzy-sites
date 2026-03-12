@@ -67,11 +67,11 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.SELECTEL_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SELECTEL_SECRET }}
-          AWS_DEFAULT_REGION:    ru-1
+          AWS_DEFAULT_REGION:    ru-3
         run: |
           pip install awscli --quiet
           aws s3 sync articles/ s3://honestpartners-site/articles/ \
-            --endpoint-url https://s3.selcdn.ru \
+            --endpoint-url https://s3.ru-3.storage.selcloud.ru \
             --acl public-read \
             --only-show-errors
           echo "Деплой завершён"
